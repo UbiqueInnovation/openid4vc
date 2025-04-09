@@ -25,7 +25,7 @@ impl KeyProofType {
 #[serde(rename_all = "lowercase")]
 pub enum KeyProofsType {
     Jwt(Vec<String>),
-    Cwt(Vec<String>)
+    Cwt(Vec<String>),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -47,7 +47,8 @@ pub struct KeyAttestationMetadata {
 pub enum ProofType {
     Jwt,
     Cwt,
-    // TODO: add support for `LdpVp` as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#section-7.2.1-2.3
+    Attestation, // #[serde(other)]
+                 // Unknown, // TODO: add support for `LdpVp` as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#section-7.2.1-2.3
 }
 
 #[derive(Default)]
@@ -93,7 +94,7 @@ impl ProofBuilder {
                 )
                 .await?,
             }),
-            Some(ProofType::Cwt) => todo!(),
+            Some(_) => todo!(),
             None => Err(anyhow::anyhow!("proof_type is required")),
         }
     }
@@ -123,7 +124,7 @@ impl ProofBuilder {
                 )
                 .await?,
             }),
-            Some(ProofType::Cwt) => todo!(),
+            Some(_) => todo!(),
             None => Err(anyhow::anyhow!("proof_type is required")),
         }
     }
