@@ -9,7 +9,7 @@ use crate::credential_issuer::{
 };
 use crate::credential_offer::{AuthorizationRequestReference, CredentialOfferParameters};
 use crate::credential_request::{CredentialRequest, OneOrManyKeyProofs};
-use crate::credential_response::CredentialResponseType;
+use crate::credential_response::{CredentialErrorResponse, CredentialResponseType};
 use crate::proof::{KeyProofType, KeyProofsType, ProofType};
 use crate::wallet::content_encryption::ContentDecryptor;
 use crate::{credential_response::CredentialResponse, token_request::TokenRequest, token_response::TokenResponse};
@@ -252,7 +252,7 @@ impl<CFC: CredentialFormatCollection + DeserializeOwned> Wallet<CFC> {
         credential_format: CFC,
         content_decryptor: Option<Box<dyn ContentDecryptor>>,
         proofs: OneOrManyKeyProofs,
-    ) -> Result<CredentialResponse> {
+    ) -> Result<CredentialResponse, CredentialErrorResponse> {
         let credential_response_encryption = if let Some(content_decryptor) = content_decryptor.as_ref() {
             Some(content_decryptor.encryption_specification())
         } else {
@@ -296,12 +296,28 @@ impl<CFC: CredentialFormatCollection + DeserializeOwned> Wallet<CFC> {
             .bearer_auth(access_token.clone())
             .json(&credential_request)
             .send()
-            .await?
-            .error_for_status_detailed()
+            .await
+            .map_err(|e| CredentialErrorResponse {
+                error: "unknown_error_during_send".to_string(),
+                error_description: Some(format!("{e}")),
+                c_nonce: None,
+                c_nonce_expires_in: None,
+            })?
+            .as_credential_error_response()
             .await?;
-        let text = response.text().await?;
+        let text = response.text().await.map_err(|e| CredentialErrorResponse {
+            error: "unknown_error_during_text".to_string(),
+            error_description: Some(format!("{e}")),
+            c_nonce: None,
+            c_nonce_expires_in: None,
+        })?;
         println!("{text}");
-        serde_json::from_str(&text).map_err(|e| e.into())
+        serde_json::from_str::<CredentialResponse>(&text).map_err(|e| CredentialErrorResponse {
+            error: "unknown_error_parsing".to_string(),
+            error_description: Some(format!("{e}")),
+            c_nonce: None,
+            c_nonce_expires_in: None,
+        })
     }
 
     pub async fn get_proof_body(
@@ -346,7 +362,7 @@ impl<CFC: CredentialFormatCollection + DeserializeOwned> Wallet<CFC> {
         credential_format: CFC,
         content_decryptor: Option<Box<dyn ContentDecryptor>>,
         client_id: &str,
-    ) -> Result<CredentialResponse> {
+    ) -> Result<CredentialResponse, CredentialErrorResponse> {
         let timestamp = SystemTime::now();
         let timestamp = timestamp.duration_since(UNIX_EPOCH).expect("Time went backwards");
 
@@ -429,6 +445,41 @@ impl ErrorForStatusDetailed for reqwest::Response {
                 }
             } else {
                 Err(err_status.into())
+            }
+        } else {
+            Ok(self)
+        }
+    }
+}
+
+trait ErrorAsCredentialErrorResponse
+where
+    Self: std::marker::Sized,
+{
+    async fn as_credential_error_response(self) -> Result<Self, CredentialErrorResponse>;
+}
+
+impl ErrorAsCredentialErrorResponse for reqwest::Response {
+    async fn as_credential_error_response(self) -> Result<Self, CredentialErrorResponse> {
+        if let Err(err_status) = self.error_for_status_ref() {
+            let status = self.status();
+            if status.is_client_error() {
+                match self.json::<CredentialErrorResponse>().await {
+                    Ok(details) => Err(details),
+                    Err(e) => Err(CredentialErrorResponse {
+                        error: "no_credential_error_response".to_string(),
+                        error_description: Some(format!("{e}")),
+                        c_nonce: None,
+                        c_nonce_expires_in: None,
+                    }),
+                }
+            } else {
+                Err(CredentialErrorResponse {
+                    error: "unknown_error".to_string(),
+                    error_description: Some(format!("{err_status}")),
+                    c_nonce: None,
+                    c_nonce_expires_in: None,
+                })
             }
         } else {
             Ok(self)

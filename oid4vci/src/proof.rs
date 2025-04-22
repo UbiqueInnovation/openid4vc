@@ -101,7 +101,7 @@ impl ProofBuilder {
     pub async fn build(self) -> anyhow::Result<KeyProofType> {
         anyhow::ensure!(self.rfc7519_claims.aud.is_some(), "aud claim is required");
         anyhow::ensure!(self.rfc7519_claims.iat.is_some(), "iat claim is required");
-        anyhow::ensure!(self.nonce.is_some(), "nonce claim is required");
+        // anyhow::ensure!(self.nonce.is_some(), "nonce claim is required");
 
         let subject_syntax_type = self
             .subject_syntax_type
@@ -117,7 +117,7 @@ impl ProofBuilder {
                         .await,
                     ProofOfPossession {
                         rfc7519_claims: self.rfc7519_claims,
-                        nonce: self.nonce.ok_or(anyhow::anyhow!("No nonce found"))?,
+                        nonce: self.nonce.unwrap_or_default(),
                     },
                     &subject_syntax_type,
                     false,
