@@ -44,7 +44,7 @@ pub enum InputMode {
 #[skip_serializing_none]
 #[derive(Deserialize, Serialize, Debug, Eq, PartialEq, Clone)]
 pub struct CredentialOfferParameters {
-    pub credential_issuer: Url,
+    pub credential_issuer: String,
     pub credential_configuration_ids: Vec<String>,
     pub grants: Option<Grants>,
 }
@@ -53,7 +53,7 @@ pub struct CredentialOfferParameters {
 #[derive(Deserialize, Serialize, Debug, Eq, PartialEq, Clone)]
 pub struct AuthorizationRequestReference {
     pub request_uri: String,
-    pub expires_in: u32
+    pub expires_in: u32,
 }
 
 /// Credential Offer as described in https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#name-credential-offer

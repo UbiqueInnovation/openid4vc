@@ -23,8 +23,8 @@ where
     CFC: CredentialFormatCollection,
 {
     // TODO: Temporary solution
-    #[derivative(Default(value = "Url::parse(\"https://example.com\").unwrap()"))]
-    pub credential_issuer: Url,
+    // #[derivative(Default(value = "Url::parse(\"https://example.com\").unwrap()"))]
+    pub credential_issuer: String,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub authorization_servers: Vec<Url>,
     // TODO: Temporary solution
@@ -48,7 +48,10 @@ mod tests {
     use super::*;
     use crate::{
         credential_format_profiles::{
-            w3c_verifiable_credentials::{jwt_vc_json::{self, StringOrVec}, CredentialSubject},
+            w3c_verifiable_credentials::{
+                jwt_vc_json::{self, StringOrVec},
+                CredentialSubject,
+            },
             CredentialFormats, Parameters, WithParameters,
         },
         proof::KeyProofMetadata,
