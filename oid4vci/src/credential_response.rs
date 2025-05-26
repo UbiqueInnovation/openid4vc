@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
 
+use crate::token_response::StringOrInt;
+
 /// Credential Response as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#name-credential-response
 #[serde_as]
 #[skip_serializing_none]
@@ -9,7 +11,7 @@ pub struct CredentialResponse {
     #[serde(flatten)]
     pub credential: CredentialResponseType,
     pub c_nonce: Option<String>,
-    pub c_nonce_expires_in: Option<u64>,
+    pub c_nonce_expires_in: Option<StringOrInt>,
 }
 
 /// Credential Response as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#name-credential-request-errors
@@ -21,7 +23,7 @@ pub struct CredentialErrorResponse {
     pub error: String,
     pub error_description: Option<String>,
     pub c_nonce: Option<String>,
-    pub c_nonce_expires_in: Option<u64>,
+    pub c_nonce_expires_in: Option<StringOrInt>,
 }
 
 /// Batch Credential Response as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#name-batch-credential-response
@@ -30,7 +32,7 @@ pub struct CredentialErrorResponse {
 pub struct BatchCredentialResponse {
     pub credential_responses: Vec<CredentialResponseType>,
     pub c_nonce: Option<String>,
-    pub c_nonce_expires_in: Option<u64>,
+    pub c_nonce_expires_in: Option<StringOrInt>,
 }
 
 #[skip_serializing_none]
@@ -59,7 +61,7 @@ mod tests {
                 transaction_id: "123".to_string(),
             },
             c_nonce: Some("456".to_string()),
-            c_nonce_expires_in: Some(789),
+            c_nonce_expires_in: Some(StringOrInt::Int(789)),
         };
         let serialized = serde_json::to_value(&credential_response).unwrap();
         assert_eq!(
@@ -82,7 +84,7 @@ mod tests {
                 notification_id: None,
             },
             c_nonce: Some("456".to_string()),
-            c_nonce_expires_in: Some(789),
+            c_nonce_expires_in: Some(StringOrInt::Int(789)),
         };
         let serialized = serde_json::to_value(&credential_response).unwrap();
         assert_eq!(
@@ -122,7 +124,7 @@ mod tests {
                 },
             ],
             c_nonce: Some("456".to_string()),
-            c_nonce_expires_in: Some(789),
+            c_nonce_expires_in: Some(StringOrInt::Int(789)),
         };
         let serialized = serde_json::to_value(&batch_credential_response).unwrap();
         assert_eq!(
