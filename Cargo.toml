@@ -15,7 +15,7 @@ members = [
     "oid4vp",
     "siopv2",
     "dif-presentation-exchange",
-    "oid4vc-manager"
+    "oid4vc-manager",
 ]
 
 [workspace.package]
@@ -27,18 +27,25 @@ repository = "https://github.com/impierce/openid4vc"
 chrono = "0.4"
 getset = "0.1"
 identity_core = "1.2.0"
-identity_credential = { version = "=1.2.0", default-features = false, features = ["validator", "credential", "presentation"] }
+identity_credential = { version = "=1.2.0", default-features = false, features = [
+    "validator",
+    "credential",
+    "presentation",
+] }
 is_empty = "0.2"
 jsonwebtoken = "8.2"
 monostate = "0.1"
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.11", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
 reqwest-middleware = "0.2"
 reqwest-retry = "0.3"
-serde = { version = "1.0", features = ["derive"]}
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
-serde_with = { version = "3.0", features = ["macros"]}
-tokio = { version = "1.26.0", features = ["rt", "macros", "rt-multi-thread"] }
+serde_with = { version = "3.0", features = ["macros"] }
+tokio = { version = "1.26.0", features = ["rt", "macros"] }
 url = { version = "2", features = ["serde"] }
 rsa = { version = "0.9.6", features = ["serde"] }
 sha2 = "0.10.8"
@@ -53,12 +60,4 @@ oid4vc-core = { path = "oid4vc-core" }
 oid4vci = { path = "oid4vci" }
 oid4vp = { path = "oid4vp" }
 siopv2 = { path = "siopv2" }
-oid4vc-manager = { path = "oid4vc-manager" }
 dif-presentation-exchange = { path = "dif-presentation-exchange" }
-
-
-
-
-
-
-
