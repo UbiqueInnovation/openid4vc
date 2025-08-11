@@ -1,6 +1,8 @@
 pub mod iso_mdl;
 pub mod w3c_verifiable_credentials;
 
+use crate::credential_format_profiles::w3c_verifiable_credentials::jwt_vc_json::SdJwtVc;
+
 use self::{
     iso_mdl::mso_mdoc::MsoMdoc,
     sealed::FormatExtension,
@@ -103,7 +105,7 @@ where
     #[serde(rename = "jwt_vc_json")]
     JwtVcJson(C::Container<JwtVcJson>),
     #[serde(rename = "vc+sd-jwt", alias = "dc+sd-jwt")]
-    JwtVcSdJwt(C::Container<JwtVcSdJwt>),
+    JwtVcSdJwt(C::Container<SdJwtVc>),
     #[serde(rename = "jwt_vc_json-ld")]
     JwtVcJsonLd(C::Container<JwtVcJsonLd>),
     #[serde(rename = "ldp_vc")]
