@@ -11,6 +11,14 @@ pub enum OneOrManyKeyProofs {
     Proof(Option<KeyProofType>),
     #[serde(rename = "proofs")]
     Proofs(KeyProofsType),
+    #[serde(skip)]
+    NoProof,
+}
+
+impl OneOrManyKeyProofs {
+    pub fn is_none(&self) -> bool {
+        matches!(self, OneOrManyKeyProofs::NoProof)
+    }
 }
 
 /// Credential Request as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#name-credential-request
@@ -25,7 +33,7 @@ where
     // pre-draft15 issuers. Remove.
     #[serde(flatten)]
     pub credential_format: Option<CFC>,
-    #[serde(flatten)]
+    #[serde(flatten, skip_serializing_if = "OneOrManyKeyProofs::is_none")]
     pub proof: OneOrManyKeyProofs,
     // TODO: add `credential_identifier` field when support for Authorization Code Flow is added.
     pub credential_response_encryption: Option<CredentialResponseEncryptionSpecification>,
