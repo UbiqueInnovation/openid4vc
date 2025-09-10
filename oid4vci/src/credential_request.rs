@@ -6,11 +6,19 @@ use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum OneOrManyKeyProofs {
+pub enum CredentialProofs {
     #[serde(rename = "proof")]
     Proof(Option<KeyProofType>),
     #[serde(rename = "proofs")]
     Proofs(KeyProofsType),
+    #[serde(skip)]
+    NoProof,
+}
+
+impl CredentialProofs {
+    pub fn is_none(&self) -> bool {
+        matches!(self, CredentialProofs::NoProof)
+    }
 }
 
 /// Credential Request as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#name-credential-request
@@ -25,8 +33,8 @@ where
     // pre-draft15 issuers. Remove.
     #[serde(flatten)]
     pub credential_format: Option<CFC>,
-    #[serde(flatten)]
-    pub proof: OneOrManyKeyProofs,
+    #[serde(flatten, skip_serializing_if = "CredentialProofs::is_none")]
+    pub proof: CredentialProofs,
     // TODO: add `credential_identifier` field when support for Authorization Code Flow is added.
     pub credential_response_encryption: Option<CredentialResponseEncryptionSpecification>,
 }
@@ -72,7 +80,7 @@ mod tests {
     use serde::de::DeserializeOwned;
     use serde_json::json;
     use std::{fs::File, path::Path};
-    use OneOrManyKeyProofs::{Proof, Proofs};
+    use CredentialProofs::{Proof, Proofs};
 
     fn json_example<T>(path: &str) -> T
     where
