@@ -14,7 +14,7 @@ use oid4vc_core::Validator;
 use oid4vci::{
     authorization_request::AuthorizationRequest,
     credential_format_profiles::CredentialFormatCollection,
-    credential_request::{BatchCredentialRequest, CredentialRequest, OneOrManyKeyProofs},
+    credential_request::{BatchCredentialRequest, CredentialRequest, CredentialProofs},
     credential_response::{BatchCredentialResponse, CredentialResponse, CredentialResponseType},
     proof::KeyProofsType,
     token_request::TokenRequest,
@@ -24,7 +24,7 @@ use serde::de::DeserializeOwned;
 use tokio::task::JoinHandle;
 use tower_http::cors::AllowOrigin;
 use url::Url;
-use OneOrManyKeyProofs::{Proof, Proofs};
+use CredentialProofs::{Proof, Proofs};
 
 pub struct Server<S, CFC>
 where

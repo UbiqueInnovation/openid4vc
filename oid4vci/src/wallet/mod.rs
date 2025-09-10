@@ -8,7 +8,7 @@ use crate::credential_issuer::{
     authorization_server_metadata::AuthorizationServerMetadata, credential_issuer_metadata::CredentialIssuerMetadata,
 };
 use crate::credential_offer::{AuthorizationRequestReference, CredentialOfferParameters};
-use crate::credential_request::{CredentialRequest, OneOrManyKeyProofs};
+use crate::credential_request::{CredentialRequest, CredentialProofs};
 use crate::credential_response::{CredentialErrorResponse, CredentialResponseType};
 use crate::proof::{KeyProofType, KeyProofsType, ProofType};
 use crate::wallet::content_encryption::ContentDecryptor;
@@ -22,7 +22,7 @@ use reqwest_retry::policies::ExponentialBackoff;
 use reqwest_retry::RetryTransientMiddleware;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
-use OneOrManyKeyProofs::{Proof, Proofs};
+use CredentialProofs::{Proof, Proofs};
 
 pub mod content_encryption;
 
@@ -251,7 +251,7 @@ impl<CFC: CredentialFormatCollection + DeserializeOwned> Wallet<CFC> {
         // For backwards compatibility with pre-draft15 only. Remove.
         credential_format: CFC,
         content_decryptor: Option<Box<dyn ContentDecryptor>>,
-        proofs: OneOrManyKeyProofs,
+        proofs: CredentialProofs,
     ) -> Result<CredentialResponse, CredentialErrorResponse> {
         let credential_response_encryption = if let Some(content_decryptor) = content_decryptor.as_ref() {
             Some(content_decryptor.encryption_specification())
