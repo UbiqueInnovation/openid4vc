@@ -8,7 +8,7 @@ use crate::credential_issuer::{
     authorization_server_metadata::AuthorizationServerMetadata, credential_issuer_metadata::CredentialIssuerMetadata,
 };
 use crate::credential_offer::{AuthorizationRequestReference, CredentialOfferParameters};
-use crate::credential_request::{CredentialRequest, CredentialProofs};
+use crate::credential_request::{CredentialProofs, CredentialRequest};
 use crate::credential_response::{CredentialErrorResponse, CredentialResponseType};
 use crate::proof::{KeyProofType, KeyProofsType, ProofType};
 use crate::wallet::content_encryption::ContentDecryptor;
@@ -325,16 +325,21 @@ impl<CFC: CredentialFormatCollection + DeserializeOwned> Wallet<CFC> {
         credential_issuer_metadata: CredentialIssuerMetadata<CFC>,
         c_nonce: Option<String>,
         client_id: &str,
+        is_for_pre_authorized: bool,
     ) -> Result<Vec<String>> {
         let nonce = c_nonce.as_ref().ok_or(anyhow::anyhow!("No c_nonce found."))?; // XXX
         let timestamp = SystemTime::now();
         let timestamp = timestamp.duration_since(UNIX_EPOCH).expect("Time went backwards");
         let mut proofs = vec![];
         for subject in &self.subjects {
-            let Ok(kpt) = KeyProofType::builder()
+            let mut builder = KeyProofType::builder()
                 .proof_type(ProofType::Jwt)
-                .signer(subject.clone())
-                .iss(client_id)
+                .signer(subject.clone());
+            // `iss` MUST not be set when in pre-authorized-flow https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#appendix-F.1-2.2.2.1
+            if !is_for_pre_authorized {
+                builder = builder.iss(client_id);
+            }
+            let Ok(kpt) = builder
                 .aud(credential_issuer_metadata.credential_issuer.clone())
                 .iat(timestamp.as_secs() as i64)
                 .exp((timestamp + Duration::from_secs(360)).as_secs() as i64)
@@ -362,16 +367,21 @@ impl<CFC: CredentialFormatCollection + DeserializeOwned> Wallet<CFC> {
         credential_format: CFC,
         content_decryptor: Option<Box<dyn ContentDecryptor>>,
         client_id: &str,
+        is_for_pre_authorized: bool,
     ) -> Result<CredentialResponse, CredentialErrorResponse> {
         let timestamp = SystemTime::now();
         let timestamp = timestamp.duration_since(UNIX_EPOCH).expect("Time went backwards");
 
         let mut proofs = vec![];
         for subject in &self.subjects {
-            let mut kpb = KeyProofType::builder()
+            let mut builder = KeyProofType::builder()
                 .proof_type(ProofType::Jwt)
-                .signer(subject.clone())
-                .iss(client_id)
+                .signer(subject.clone());
+            // `iss` MUST not be set when in pre-authorized-flow https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#appendix-F.1-2.2.2.1
+            if !is_for_pre_authorized {
+                builder = builder.iss(client_id);
+            }
+            let mut kpb = builder
                 .aud(credential_issuer_metadata.credential_issuer.clone())
                 .iat(timestamp.as_secs() as i64)
                 .exp((timestamp + Duration::from_secs(360)).as_secs() as i64)
