@@ -17,7 +17,7 @@ pub struct Object<E: Extension = Generic> {
     #[serde(flatten)]
     pub rfc7519_claims: RFC7519Claims,
     pub client_id: String,
-    pub redirect_uri: url::Url,
+    pub redirect_uri: Option<url::Url>,
     pub state: Option<String>,
     #[serde(flatten)]
     pub extension: <E::RequestHandle as RequestHandle>::Parameters,
@@ -164,6 +164,8 @@ impl<B: Body> std::fmt::Display for AuthorizationRequest<B> {
 
 #[cfg(test)]
 mod tests {
+    use url::Url;
+
     use super::*;
     use std::str::FromStr;
 
@@ -174,7 +176,7 @@ mod tests {
             body: Object {
                 rfc7519_claims: Default::default(),
                 client_id: "did:example:123".to_string(),
-                redirect_uri: "https://www.example.com".parse().unwrap(),
+                redirect_uri: "https://www.example.com".parse::<Url>().ok(),
                 state: Some("state".to_string()),
                 extension: json!({
                     "response_mode": "direct_post",

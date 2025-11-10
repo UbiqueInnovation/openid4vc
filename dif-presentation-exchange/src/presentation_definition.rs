@@ -1,5 +1,5 @@
 use getset::Getters;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::skip_serializing_none;
 use std::collections::HashMap;
 
@@ -14,9 +14,36 @@ pub struct PresentationDefinition {
     // Feature.
     #[getset(get = "pub")]
     pub(crate) input_descriptors: Vec<InputDescriptor>,
+    #[getset(get = "pub")]
+    pub(crate) submission_requirements: Option<Vec<SubmissionRequirement>>,
+    #[getset(get = "pub")]
     pub(crate) name: Option<String>,
+    #[getset(get = "pub")]
     pub(crate) purpose: Option<String>,
-    pub(crate) format: Option<HashMap<ClaimFormatDesignation, ClaimFormatProperty>>,
+    #[serde(default, deserialize_with = "deserialize_format")]
+    pub(crate) format: Option<HashMap<ClaimFormatDesignation, Option<ClaimFormatProperty>>>,
+}
+
+/// As specified in https://identity.foundation/presentation-exchange/#submission-requirement-feature.
+#[allow(dead_code)]
+#[skip_serializing_none]
+#[derive(Deserialize, Debug, Getters, PartialEq, Clone, Serialize)]
+pub struct SubmissionRequirement {
+    #[getset(get = "pub")]
+    name: String,
+    #[getset(get = "pub")]
+    rule: SubmissionRule,
+    #[getset(get = "pub")]
+    count: u32,
+    #[getset(get = "pub")]
+    from: String,
+}
+#[allow(dead_code)]
+#[skip_serializing_none]
+#[derive(Deserialize, Debug, PartialEq, Clone, Serialize)]
+pub enum SubmissionRule {
+    #[serde(alias = "pick", alias = "PICK", alias = "Pick")]
+    Pick,
 }
 
 /// As specified in https://identity.foundation/presentation-exchange/#input-descriptor-object.
@@ -28,12 +55,39 @@ pub struct InputDescriptor {
     // Must not conflict with other input descriptors.
     #[getset(get = "pub")]
     pub(crate) id: String,
+    #[getset(get = "pub")]
     pub(crate) name: Option<String>,
+    #[getset(get = "pub")]
     pub(crate) purpose: Option<String>,
-    pub(crate) format: Option<HashMap<ClaimFormatDesignation, ClaimFormatProperty>>,
+    #[getset(get = "pub")]
+    pub(crate) group: Option<Vec<String>>,
+    #[getset(get = "pub")]
+    #[serde(default, deserialize_with = "deserialize_format")]
+    pub(crate) format: Option<HashMap<ClaimFormatDesignation, Option<ClaimFormatProperty>>>,
     #[getset(get = "pub")]
     pub(crate) constraints: Constraints,
     pub(crate) schema: Option<String>,
+}
+
+fn deserialize_format<'de, D>(
+    deserializer: D,
+) -> Result<Option<HashMap<ClaimFormatDesignation, Option<ClaimFormatProperty>>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt_value: Option<HashMap<ClaimFormatDesignation, serde_json::Value>> = Option::deserialize(deserializer)?;
+    let Some(value) = opt_value else { return Ok(None) };
+
+    let mut map = HashMap::new();
+    for (key, val) in value {
+        let parsed_val = if val.as_object().map(|o| o.is_empty()).unwrap_or(false) {
+            None
+        } else {
+            Some(serde_json::from_value(val).map_err(serde::de::Error::custom)?)
+        };
+        map.insert(key, parsed_val);
+    }
+    Ok(Some(map))
 }
 
 // Its value MUST be an array of one or more format-specific algorithmic identifier references
@@ -53,7 +107,7 @@ pub enum ClaimFormatDesignation {
     AcVc,
     AcVp,
     MsoMdoc,
-    #[serde(rename = "vc+sd-jwt")]
+    #[serde(rename = "vc+sd-jwt", alias = "dc+sd-jwt")]
     VcSdJwt,
 }
 
@@ -63,6 +117,13 @@ pub enum ClaimFormatDesignation {
 pub enum ClaimFormatProperty {
     Alg(Vec<String>),
     ProofType(Vec<String>),
+    #[serde(untagged)]
+    Sdjwt {
+        #[serde(rename = "kb-jwt_alg_values")]
+        kb_jwt_alg_values: Vec<String>,
+        #[serde(rename = "sd-jwt_alg_values")]
+        sd_jwt_alg_values: Vec<String>,
+    },
 }
 
 #[allow(dead_code)]
@@ -131,7 +192,7 @@ mod tests {
                     purpose: None,
                     format: Some(HashMap::from_iter(vec![(
                         ClaimFormatDesignation::AcVc,
-                        ClaimFormatProperty::ProofType(vec!["CLSignature2019".to_string()])
+                        Some(ClaimFormatProperty::ProofType(vec!["CLSignature2019".to_string()]))
                     )])),
                     constraints: Constraints {
                         limit_disclosure: Some(LimitDisclosure::Required),
@@ -172,7 +233,7 @@ mod tests {
                     purpose: None,
                     format: Some(HashMap::from_iter(vec![(
                         ClaimFormatDesignation::AcVc,
-                        ClaimFormatProperty::ProofType(vec!["CLSignature2019".to_string()])
+                        Some(ClaimFormatProperty::ProofType(vec!["CLSignature2019".to_string()]))
                     )])),
                     constraints: Constraints {
                         fields: Some(vec![Field {
@@ -203,7 +264,7 @@ mod tests {
                     purpose: None,
                     format: Some(HashMap::from_iter(vec![(
                         ClaimFormatDesignation::JwtVcJson,
-                        ClaimFormatProperty::ProofType(vec!["JsonWebSignature2020".to_string()])
+                        Some(ClaimFormatProperty::ProofType(vec!["JsonWebSignature2020".to_string()]))
                     )])),
                     constraints: Constraints {
                         fields: Some(vec![Field {
@@ -236,7 +297,7 @@ mod tests {
                     purpose: None,
                     format: Some(HashMap::from_iter(vec![(
                         ClaimFormatDesignation::LdpVc,
-                        ClaimFormatProperty::ProofType(vec!["Ed25519Signature2018".to_string()])
+                        Some(ClaimFormatProperty::ProofType(vec!["Ed25519Signature2018".to_string()]))
                     )])),
                     constraints: Constraints {
                         fields: Some(vec![Field {
@@ -270,7 +331,7 @@ mod tests {
                     purpose: None,
                     format: Some(HashMap::from_iter(vec![(
                         ClaimFormatDesignation::MsoMdoc,
-                        ClaimFormatProperty::Alg(vec!["EdDSA".to_string(), "ES256".to_string()])
+                        Some(ClaimFormatProperty::Alg(vec!["EdDSA".to_string(), "ES256".to_string()]))
                     )])),
                     constraints: Constraints {
                         limit_disclosure: Some(LimitDisclosure::Required),
@@ -323,7 +384,7 @@ mod tests {
                     purpose: None,
                     format: Some(HashMap::from_iter(vec![(
                         ClaimFormatDesignation::LdpVc,
-                        ClaimFormatProperty::ProofType(vec!["Ed25519Signature2018".to_string()])
+                        Some(ClaimFormatProperty::ProofType(vec!["Ed25519Signature2018".to_string()]))
                     )])),
                     constraints: Constraints {
                         fields: Some(vec![
@@ -368,7 +429,7 @@ mod tests {
                     purpose: None,
                     format: Some(HashMap::from_iter(vec![(
                         ClaimFormatDesignation::LdpVc,
-                        ClaimFormatProperty::ProofType(vec!["Ed25519Signature2018".to_string()])
+                        Some(ClaimFormatProperty::ProofType(vec!["Ed25519Signature2018".to_string()]))
                     )])),
                     constraints: Constraints {
                         fields: Some(vec![Field {

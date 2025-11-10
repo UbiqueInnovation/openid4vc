@@ -10,6 +10,7 @@ use oid4vc_core::{
     authorization_request::AuthorizationRequest, client_metadata::ClientMetadataResource, scope::Scope, RFC7519Claims,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 
 /// The Client ID Scheme enables the use of different mechanisms to obtain and validate the Verifier's metadata. As
@@ -31,13 +32,15 @@ pub enum ClientIdScheme {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct AuthorizationRequestParameters {
     pub response_type: MustBe!("vp_token"),
-    pub presentation_definition: PresentationDefinition,
+    pub presentation_definition: Option<PresentationDefinition>,
     pub client_id_scheme: Option<ClientIdScheme>,
     pub response_mode: Option<String>,
+    pub response_uri: Option<String>,
     pub scope: Option<Scope>,
     pub nonce: String,
     #[serde(flatten)]
     pub client_metadata: Option<ClientMetadataResource<ClientMetadataParameters>>,
+    pub zkp: Option<ZkpInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -45,7 +48,11 @@ pub struct ClientMetadataParameters {
     /// Object defining the formats and proof types of Verifiable Presentations and Verifiable Credentials that a
     /// Verifier supports.
     /// As described here: https://openid.net/specs/openid-4-verifiable-presentations-1_0-20.html#name-additional-verifier-metadat
-    vp_formats: HashMap<ClaimFormatDesignation, ClaimFormatProperty>,
+    pub vp_formats: HashMap<ClaimFormatDesignation, ClaimFormatProperty>,
+    pub jwks: Option<Value>,
+    pub authorization_encrypted_response_alg: Option<String>,
+    pub authorization_encrypted_response_enc: Option<String>,
+    pub require_signed_request_object: Option<bool>,
 }
 
 #[derive(Debug, Default, IsEmpty)]
@@ -58,9 +65,24 @@ pub struct AuthorizationRequestBuilder {
     state: Option<String>,
     scope: Option<Scope>,
     response_mode: Option<String>,
+    response_uri: Option<String>,
     nonce: Option<String>,
     client_metadata: Option<ClientMetadataResource<ClientMetadataParameters>>,
     custom_url_scheme: Option<String>,
+    zkp: Option<ZkpInfo>,
+}
+
+#[derive(Deserialize, Debug, PartialEq, Clone, Serialize)]
+pub struct ZkpInfo {
+    pub definition: String,
+    #[serde(alias = "provingKey")]
+    pub proving_key: String,
+    #[serde(alias = "issuerPk")]
+    pub issuer_pk: String,
+    #[serde(alias = "issuerId")]
+    pub issuer_id: String,
+    #[serde(alias = "issuerKeyId")]
+    pub issuer_key_id: String,
 }
 
 impl AuthorizationRequestBuilder {
@@ -72,6 +94,7 @@ impl AuthorizationRequestBuilder {
     builder_fn!(rfc7519_claims, iat, i64);
     builder_fn!(rfc7519_claims, jti, String);
     builder_fn!(response_mode, String);
+    builder_fn!(response_uri, String);
     builder_fn!(client_id, String);
     builder_fn!(scope, Scope);
     builder_fn!(redirect_uri, url::Url);
@@ -81,6 +104,7 @@ impl AuthorizationRequestBuilder {
     builder_fn!(presentation_definition, PresentationDefinition);
     builder_fn!(client_id_scheme, ClientIdScheme);
     builder_fn!(custom_url_scheme, String);
+    builder_fn!(zkp, ZkpInfo);
 
     pub fn build(mut self) -> Result<AuthorizationRequest<Object<OID4VP>>> {
         match (self.client_id.take(), self.is_empty()) {
@@ -88,18 +112,17 @@ impl AuthorizationRequestBuilder {
             (Some(client_id), false) => {
                 let extension = AuthorizationRequestParameters {
                     response_type: MustBe!("vp_token"),
-                    presentation_definition: self
-                        .presentation_definition
-                        .take()
-                        .ok_or_else(|| anyhow!("presentation_definition parameter is required."))?,
+                    presentation_definition: self.presentation_definition.take(),
                     client_id_scheme: self.client_id_scheme.take(),
                     scope: self.scope.take(),
                     response_mode: self.response_mode.take(),
+                    response_uri: self.response_uri.take(),
                     nonce: self
                         .nonce
                         .take()
                         .ok_or_else(|| anyhow!("nonce parameter is required."))?,
                     client_metadata: self.client_metadata.take(),
+                    zkp: self.zkp.take(),
                 };
 
                 Ok(AuthorizationRequest::<Object<OID4VP>> {
@@ -107,10 +130,7 @@ impl AuthorizationRequestBuilder {
                     body: Object::<OID4VP> {
                         rfc7519_claims: self.rfc7519_claims,
                         client_id,
-                        redirect_uri: self
-                            .redirect_uri
-                            .take()
-                            .ok_or_else(|| anyhow!("redirect_uri parameter is required."))?,
+                        redirect_uri: self.redirect_uri.take(),
                         state: self.state.take(),
                         extension,
                     },
@@ -217,7 +237,11 @@ mod tests {
                             )
                         ]
                         .into_iter()
-                        .collect()
+                        .collect(),
+                        jwks: todo!(),
+                        authorization_encrypted_response_alg: todo!(),
+                        authorization_encrypted_response_enc: todo!(),
+                        require_signed_request_object: todo!()
                     }
                 }),
             },

@@ -63,6 +63,7 @@ impl Extension for SIOPv2 {
             Header::new(Algorithm::EdDSA),
             id_token,
             &subject_syntax_type_string,
+            true
         )
         .await?;
 
@@ -72,7 +73,7 @@ impl Extension for SIOPv2 {
     fn build_authorization_response(
         jwts: Vec<String>,
         _user_input: <Self::ResponseHandle as ResponseHandle>::Input,
-        redirect_uri: String,
+        redirect_uri: Option<String>,
         state: Option<String>,
     ) -> anyhow::Result<AuthorizationResponse<Self>> {
         let extension = AuthorizationResponseParameters {

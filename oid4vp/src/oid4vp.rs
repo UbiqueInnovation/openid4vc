@@ -70,6 +70,7 @@ impl Extension for OID4VP {
             Header::new(Algorithm::EdDSA),
             vp_token,
             &subject_syntax_type_string,
+            false
         )
         .await?;
         Ok(vec![jwt])
@@ -78,7 +79,7 @@ impl Extension for OID4VP {
     fn build_authorization_response(
         jwts: Vec<String>,
         user_input: <Self::ResponseHandle as ResponseHandle>::Input,
-        redirect_uri: String,
+        redirect_uri: Option<String>,
         state: Option<String>,
     ) -> anyhow::Result<AuthorizationResponse<Self>> {
         Ok(AuthorizationResponse {

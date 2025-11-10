@@ -29,10 +29,12 @@ impl<S: Storage<CFC>, CFC: CredentialFormatCollection> CredentialIssuerManager<S
             credential_issuer: CredentialIssuer {
                 subject: subject.clone(),
                 metadata: CredentialIssuerMetadata {
-                    credential_issuer: issuer_url.clone(),
+                    credential_issuer: issuer_url.as_str().to_string(),
                     authorization_servers: vec![],
                     credential_endpoint: issuer_url.join("/credential")?,
+                    nonce_endpoint: None,
                     batch_credential_endpoint: Some(issuer_url.join("/batch_credential")?),
+                    token_endpoint: None,
                     deferred_credential_endpoint: None,
                     notification_endpoint: None,
                     credential_response_encryption: None,
@@ -56,7 +58,7 @@ impl<S: Storage<CFC>, CFC: CredentialFormatCollection> CredentialIssuerManager<S
     }
 
     pub fn credential_issuer_url(&self) -> Result<Url> {
-        Ok(self.credential_issuer.metadata.credential_issuer.clone())
+        Ok(Url::parse(&self.credential_issuer.metadata.credential_issuer)?)
     }
 
     pub fn credential_offer(&self) -> Result<CredentialOfferParameters> {
@@ -79,6 +81,7 @@ impl<S: Storage<CFC>, CFC: CredentialFormatCollection> CredentialIssuerManager<S
 
     pub fn credential_offer_uri(&self) -> Result<Url> {
         let issuer_url = self.credential_issuer.metadata.credential_issuer.clone();
+        let issuer_url = Url::parse(&issuer_url)?;
         Ok(issuer_url.join("/credential_offer")?)
     }
 

@@ -1,7 +1,3 @@
-use jsonwebtoken::{
-    jwk::{CommonParameters, Jwk},
-    Algorithm, Header,
-};
 use oid4vc_core::{builder_fn, jwt, RFC7519Claims, Subject};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -14,6 +10,8 @@ pub enum KeyProofType {
     Jwt { jwt: String },
     #[serde(rename = "cwt")]
     Cwt { cwt: String },
+    #[serde(rename = "attestation")]
+    Attestation { attestation: String },
 }
 
 impl KeyProofType {
@@ -22,9 +20,26 @@ impl KeyProofType {
     }
 }
 
+// Key Proof_s_ type for multiple proof-of-posessions in the same credential request
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum KeyProofsType {
+    Jwt(Vec<String>),
+    Cwt(Vec<String>),
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct KeyProofMetadata {
     pub proof_signing_alg_values_supported: Vec<String>,
+    pub key_attestations_required: Option<KeyAttestationMetadata>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct KeyAttestationMetadata {
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub key_storage: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub user_authentication: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
@@ -32,7 +47,8 @@ pub struct KeyProofMetadata {
 pub enum ProofType {
     Jwt,
     Cwt,
-    // TODO: add support for `LdpVp` as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#section-7.2.1-2.3
+    Attestation, // #[serde(other)]
+                 // Unknown, // TODO: add support for `LdpVp` as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#section-7.2.1-2.3
 }
 
 #[derive(Default)]
@@ -52,7 +68,7 @@ pub struct ProofOfPossession {
 }
 
 impl ProofBuilder {
-    pub async fn build(self) -> anyhow::Result<KeyProofType> {
+    pub async fn build_no_sign(self) -> anyhow::Result<KeyProofType> {
         anyhow::ensure!(self.rfc7519_claims.aud.is_some(), "aud claim is required");
         anyhow::ensure!(self.rfc7519_claims.iat.is_some(), "iat claim is required");
         anyhow::ensure!(self.nonce.is_some(), "nonce claim is required");
@@ -63,18 +79,52 @@ impl ProofBuilder {
 
         match self.proof_type {
             Some(ProofType::Jwt) => Ok(KeyProofType::Jwt {
-                jwt: jwt::encode(
+                jwt: jwt::encode_body(
                     self.signer.as_ref().ok_or(anyhow::anyhow!("No subject found"))?.clone(),
-                    self.signer.ok_or(anyhow::anyhow!("No subject found"))?.jwt_header().await,
+                    self.signer
+                        .ok_or(anyhow::anyhow!("No subject found"))?
+                        .jwt_header()
+                        .await,
                     ProofOfPossession {
                         rfc7519_claims: self.rfc7519_claims,
                         nonce: self.nonce.ok_or(anyhow::anyhow!("No nonce found"))?,
                     },
                     &subject_syntax_type,
+                    false,
                 )
                 .await?,
             }),
-            Some(ProofType::Cwt) => todo!(),
+            Some(_) => todo!(),
+            None => Err(anyhow::anyhow!("proof_type is required")),
+        }
+    }
+    pub async fn build(self) -> anyhow::Result<KeyProofType> {
+        anyhow::ensure!(self.rfc7519_claims.aud.is_some(), "aud claim is required");
+        anyhow::ensure!(self.rfc7519_claims.iat.is_some(), "iat claim is required");
+        // anyhow::ensure!(self.nonce.is_some(), "nonce claim is required");
+
+        let subject_syntax_type = self
+            .subject_syntax_type
+            .ok_or(anyhow::anyhow!("subject_syntax_type is required"))?;
+
+        match self.proof_type {
+            Some(ProofType::Jwt) => Ok(KeyProofType::Jwt {
+                jwt: jwt::encode(
+                    self.signer.as_ref().ok_or(anyhow::anyhow!("No subject found"))?.clone(),
+                    self.signer
+                        .ok_or(anyhow::anyhow!("No subject found"))?
+                        .jwt_header()
+                        .await,
+                    ProofOfPossession {
+                        rfc7519_claims: self.rfc7519_claims,
+                        nonce: self.nonce.unwrap_or_default(),
+                    },
+                    &subject_syntax_type,
+                    false,
+                )
+                .await?,
+            }),
+            Some(_) => todo!(),
             None => Err(anyhow::anyhow!("proof_type is required")),
         }
     }

@@ -23,13 +23,16 @@ where
     CFC: CredentialFormatCollection,
 {
     // TODO: Temporary solution
-    #[derivative(Default(value = "Url::parse(\"https://example.com\").unwrap()"))]
-    pub credential_issuer: Url,
+    // #[derivative(Default(value = "Url::parse(\"https://example.com\").unwrap()"))]
+    pub credential_issuer: String,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub authorization_servers: Vec<Url>,
     // TODO: Temporary solution
     #[derivative(Default(value = "Url::parse(\"https://example.com\").unwrap()"))]
     pub credential_endpoint: Url,
+    pub nonce_endpoint: Option<Url>,
+    //TODO: Not RFC but if only preauth certain issuer put it here
+    pub token_endpoint: Option<Url>,
     pub batch_credential_endpoint: Option<Url>,
     pub deferred_credential_endpoint: Option<Url>,
     pub notification_endpoint: Option<Url>,
@@ -45,7 +48,10 @@ mod tests {
     use super::*;
     use crate::{
         credential_format_profiles::{
-            w3c_verifiable_credentials::{jwt_vc_json::{self, StringOrVec}, CredentialSubject},
+            w3c_verifiable_credentials::{
+                jwt_vc_json::{self, StringOrVec},
+                CredentialSubject,
+            },
             CredentialFormats, Parameters, WithParameters,
         },
         proof::KeyProofMetadata,
@@ -74,6 +80,8 @@ mod tests {
                 credential_issuer: "https://credential-issuer.example.com".parse().unwrap(),
                 authorization_servers: vec!["https://server.example.com".parse().unwrap()],
                 credential_endpoint: Url::parse("https://credential-issuer.example.com").unwrap(),
+                nonce_endpoint: None,
+                token_endpoint: None,
                 batch_credential_endpoint: Some(
                     "https://credential-issuer.example.com/batch_credential"
                         .parse()
@@ -151,7 +159,8 @@ mod tests {
                         proof_types_supported: vec![(
                             ProofType::Jwt,
                             KeyProofMetadata {
-                                proof_signing_alg_values_supported: vec!["ES256".to_string()]
+                                proof_signing_alg_values_supported: vec!["ES256".to_string()],
+                                key_attestations_required: None,
                             }
                         )]
                         .into_iter()

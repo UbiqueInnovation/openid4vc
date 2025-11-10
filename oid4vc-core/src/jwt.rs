@@ -50,7 +50,13 @@ where
     Ok(jsonwebtoken::decode::<T>(jwt, &key, &validation)?.claims)
 }
 
-pub async fn encode<C, S>(signer: Arc<S>, header: Header, claims: C, subject_syntax_type: &str) -> Result<String>
+pub async fn encode_body<C, S>(
+    signer: Arc<S>,
+    header: Header,
+    claims: C,
+    subject_syntax_type: &str,
+    with_kid: bool,
+) -> Result<String>
 where
     C: Serialize,
     S: Sign + ?Sized,
@@ -68,8 +74,44 @@ where
         kid
     };
 
+    let jwt = if with_kid {
+        JsonWebToken::new(header, claims).kid(kid.to_string())
+    } else {
+        JsonWebToken::new(header, claims)
+    };
 
-    let jwt = JsonWebToken::new(header, claims).kid(kid.to_string());
+    Ok([base64_url_encode(&jwt.header)?, base64_url_encode(&jwt.payload)?].join("."))
+}
+
+pub async fn encode<C, S>(
+    signer: Arc<S>,
+    header: Header,
+    claims: C,
+    subject_syntax_type: &str,
+    with_kid: bool,
+) -> Result<String>
+where
+    C: Serialize,
+    S: Sign + ?Sized,
+{
+    let kid = signer
+        .key_id(subject_syntax_type)
+        .await
+        .ok_or(anyhow!("No key identifier found."))?;
+
+    println!("-----> {kid}");
+    let kid = if kid.contains("#") {
+        let (kid, _) = kid.split_once("#").unwrap();
+        kid.to_string()
+    } else {
+        kid
+    };
+
+    let jwt = if with_kid {
+        JsonWebToken::new(header, claims).kid(kid.to_string())
+    } else {
+        JsonWebToken::new(header, claims)
+    };
 
     let message = [base64_url_encode(&jwt.header)?, base64_url_encode(&jwt.payload)?].join(".");
 
@@ -114,9 +156,15 @@ mod tests {
             "nonce": "nonce",
         });
         let subject = TestSubject::new("did:test:123".to_string(), "key_id".to_string()).unwrap();
-        let encoded = encode(Arc::new(subject), Header::new(Algorithm::EdDSA), claims, "did:test")
-            .await
-            .unwrap();
+        let encoded = encode(
+            Arc::new(subject),
+            Header::new(Algorithm::EdDSA),
+            claims,
+            "did:test",
+            true,
+        )
+        .await
+        .unwrap();
 
         let verifier = MockVerifier::new();
         let (kid, algorithm) = extract_header(&encoded).unwrap();

@@ -14,13 +14,17 @@ use oid4vc_core::Validator;
 use oid4vci::{
     authorization_request::AuthorizationRequest,
     credential_format_profiles::CredentialFormatCollection,
-    credential_request::{BatchCredentialRequest, CredentialRequest},
-    credential_response::BatchCredentialResponse,
+    credential_request::{BatchCredentialRequest, CredentialRequest, CredentialProofs},
+    credential_response::{BatchCredentialResponse, CredentialResponse, CredentialResponseType},
+    proof::KeyProofsType,
     token_request::TokenRequest,
+    KeyProofType,
 };
 use serde::de::DeserializeOwned;
 use tokio::task::JoinHandle;
 use tower_http::cors::AllowOrigin;
+use url::Url;
+use CredentialProofs::{Proof, Proofs};
 
 pub struct Server<S, CFC>
 where
@@ -174,33 +178,61 @@ async fn credential<S: Storage<CFC>, CFC: CredentialFormatCollection>(
     Json(credential_request): Json<CredentialRequest<CFC>>,
 ) -> impl IntoResponse {
     // TODO: The bunch of unwrap's here should be replaced with error responses as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#name-credential-error-response
-    let proof = credential_issuer_manager
-        .credential_issuer
-        .validate_proof(
-            credential_request.proof.unwrap(),
-            Validator::Subject(credential_issuer_manager.credential_issuer.subject.clone()),
-        )
-        .await
-        .unwrap();
+    let credential_request_proofs = match credential_request.proof {
+        Proof(None) => vec![],
+        Proof(Some(proof)) => vec![proof],
+        Proofs(KeyProofsType::Jwt(proofs)) => proofs.into_iter().map(|jwt| KeyProofType::Jwt { jwt }).collect(),
+        Proofs(KeyProofsType::Cwt(proofs)) => proofs.into_iter().map(|cwt| KeyProofType::Cwt { cwt }).collect(),
+    };
+
+    let mut c_nonce = None;
+    let mut c_nonce_expires_in = None;
+    let mut credentials = Vec::new();
+
+    for credential_request_proof in credential_request_proofs.iter() {
+        let proof = credential_issuer_manager
+            .credential_issuer
+            .validate_proof(
+                credential_request_proof.clone(),
+                Validator::Subject(credential_issuer_manager.credential_issuer.subject.clone()),
+            )
+            .await
+            .unwrap();
+        let response = credential_issuer_manager
+            .storage
+            .get_credential_response(
+                access_token.clone(),
+                proof.rfc7519_claims.iss().as_ref().unwrap().parse().unwrap(),
+                Url::parse(&credential_issuer_manager.credential_issuer.metadata.credential_issuer)
+                    .expect("Invalid issuer url"),
+                credential_request.credential_format.clone().expect("broken and unused"),
+                credential_issuer_manager.credential_issuer.subject.clone(),
+            )
+            .unwrap();
+
+        // XXX hack
+        if credentials.is_empty() {
+            c_nonce = response.c_nonce;
+            c_nonce_expires_in = response.c_nonce_expires_in;
+        }
+        if let CredentialResponseType::Immediate { credential, .. } = response.credential {
+            credentials.push(credential)
+        } else {
+            panic!();
+        }
+    }
+
     (
         StatusCode::OK,
         AppendHeaders([("Cache-Control", "no-store")]),
-        Json(
-            credential_issuer_manager
-                .storage
-                .get_credential_response(
-                    access_token,
-                    proof.rfc7519_claims.iss().as_ref().unwrap().parse().unwrap(),
-                    credential_issuer_manager
-                        .credential_issuer
-                        .metadata
-                        .credential_issuer
-                        .clone(),
-                    credential_request.credential_format.clone(),
-                    credential_issuer_manager.credential_issuer.subject.clone(),
-                )
-                .unwrap(),
-        ),
+        Json(CredentialResponse {
+            credential: CredentialResponseType::Immediate {
+                credential: serde_json::Value::Array(credentials),
+                notification_id: None,
+            },
+            c_nonce,
+            c_nonce_expires_in,
+        }),
     )
 }
 
@@ -212,10 +244,13 @@ async fn batch_credential<S: Storage<CFC>, CFC: CredentialFormatCollection>(
     let mut credential_responses = vec![];
     for credential_request in batch_credential_request.credential_requests {
         // TODO: The bunch of unwrap's here should be replaced with error responses as described here: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-13.html#name-batch-credential-error-resp
+        let Proof(credential_request_proof) = credential_request.proof else {
+            panic!()
+        }; // XXX proofs (plural!) not implemented here
         let proof = credential_issuer_manager
             .credential_issuer
             .validate_proof(
-                credential_request.proof.unwrap(),
+                credential_request_proof.unwrap().clone(),
                 Validator::Subject(credential_issuer_manager.credential_issuer.subject.clone()),
             )
             .await
@@ -227,12 +262,8 @@ async fn batch_credential<S: Storage<CFC>, CFC: CredentialFormatCollection>(
                 .get_credential_response(
                     access_token.clone(),
                     proof.rfc7519_claims.iss().as_ref().unwrap().parse().unwrap(),
-                    credential_issuer_manager
-                        .credential_issuer
-                        .metadata
-                        .credential_issuer
-                        .clone(),
-                    credential_request.credential_format.clone(),
+                    Url::parse(&credential_issuer_manager.credential_issuer.metadata.credential_issuer).unwrap(),
+                    credential_request.credential_format.clone().expect("broken and unused"),
                     credential_issuer_manager.credential_issuer.subject.clone(),
                 )
                 .unwrap()
