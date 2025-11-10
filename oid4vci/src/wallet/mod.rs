@@ -22,7 +22,7 @@ use reqwest_retry::policies::ExponentialBackoff;
 use reqwest_retry::RetryTransientMiddleware;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
-use CredentialProofs::{Proof, Proofs};
+use CredentialProofs::Proofs;
 
 pub mod content_encryption;
 
@@ -257,17 +257,6 @@ impl<CFC: CredentialFormatCollection + DeserializeOwned> Wallet<CFC> {
             Some(content_decryptor.encryption_specification())
         } else {
             None
-        };
-
-        // convert to single "proof" instead of "proofs" if possible
-        let proofs = if let Proofs(KeyProofsType::Jwt(jwts)) = &proofs {
-            if jwts.len() == 1 {
-                Proof(jwts.first().map(|jwt| KeyProofType::Jwt { jwt: jwt.clone() }))
-            } else {
-                proofs
-            }
-        } else {
-            proofs
         };
 
         // Backwards compatibility hack to only send appropriate fields in request:
