@@ -26,6 +26,7 @@ impl KeyProofType {
 pub enum KeyProofsType {
     Jwt(Vec<String>),
     Cwt(Vec<String>),
+    Attestation(Vec<String>),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
