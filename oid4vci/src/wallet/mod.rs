@@ -282,6 +282,8 @@ impl<CFC: CredentialFormatCollection + DeserializeOwned> Wallet<CFC> {
         let response = self
             .client
             .post(credential_issuer_metadata.credential_endpoint.clone())
+            // https://github.com/swiyu-admin-ch/swiyu-issuer?tab=readme-ov-file#latest-development
+            .header("SWIYU-API-Version", "2")
             .bearer_auth(access_token.clone())
             .json(&credential_request)
             .send()
